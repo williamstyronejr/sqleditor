@@ -14,7 +14,7 @@ export default function Modal({
         onClick={onClose}
       />
 
-      <div className="w-80 bg-white shadow-lg">{children}</div>
+      <div className="w-80 shadow-lg">{children}</div>
     </div>
   );
 }
