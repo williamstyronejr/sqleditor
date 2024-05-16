@@ -1,7 +1,78 @@
 "use client";
 
 import Modal from "@/components/Modal";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import useOutsideClick from "@/hooks/useOutsideClick";
+import {
+  Dispatch,
+  SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+type SQL_COL = {
+  name: string;
+  type: string;
+};
+
+type SQL_TABLE = {
+  name: string;
+  fields: SQL_COL[];
+};
+
+type Data = SQL_TABLE[];
+
+const SQL_DATA_TYPE = ["int", "varchar", "float", "double", "bool", "char"];
+
+const DropDownSelector = ({
+  selected,
+  onSelect,
+  options,
+}: {
+  selected: string;
+  onSelect: (val: string) => void;
+  options: string[];
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useOutsideClick({
+    active: isOpen,
+    closeEvent: () => setIsOpen(false),
+  });
+
+  return (
+    <div className="" ref={ref}>
+      <button
+        type="button"
+        className="border-slate-300 border px-2 py-1 rounded-md"
+        onClick={() => setIsOpen((old) => !old)}
+      >
+        {selected}
+      </button>
+
+      <div
+        className={`${
+          isOpen ? "flex flex-col flex-nowrap" : "hidden"
+        } absolute  bg-white shadow-popup right-4 rounded-md z-50 text-left`}
+      >
+        {options.map((option) => (
+          <button
+            key={`drown-down-option-${option}`}
+            className="pl-2 pr-4 text-left py-1 hover:bg-slate-400/10 disabled:text-slate-400 disabled:bg-slate-400/10"
+            disabled={option === selected}
+            onClick={() => {
+              setIsOpen(false);
+              onSelect(option);
+            }}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 const CreateTable = ({
   visible,
@@ -10,46 +81,124 @@ const CreateTable = ({
 }: {
   visible: boolean;
   setVisible: (val: boolean) => void;
-  onCreate: (val: any) => void;
+  onCreate: ({ name, fields }: SQL_TABLE) => void;
 }) => {
-  const [columns, setColumns] = useState<{ name: string; type: string }[]>([
-    { name: "tesst", type: "int" },
-    { name: "test 2", type: "varchar" },
+  const [errors, setErrors] = useState<{ title?: string }>({});
+  const [title, setTitle] = useState("");
+  const [columns, setColumns] = useState<
+    { id: string; name: string; type: string }[]
+  >([
+    { id: "2", name: "tesst", type: "int" },
+    { id: "1", name: "test 2", type: "varchar" },
   ]);
+
+  const validateInputs = useCallback(() => {
+    const errors: { title?: string } = {};
+
+    if (title.trim() === "") errors.title = "Invalid Title";
+    if (Object.keys(errors).length) return setErrors(errors);
+
+    onCreate({ name: title, fields: columns });
+    setVisible(false);
+  }, [title, columns, onCreate, setVisible]);
 
   if (!visible) return null;
 
   return (
     <Modal onClose={() => setVisible(false)}>
-      <div className="py-2">
-        <header className="pb-4 px-2">
-          <h3 className="font-semibold text-2xl">Create Table</h3>
+      <div className="py-2 rounded-md bg-white">
+        <header className="flex flex-row flex-nowrap pt-2 pb-8 px-2 relative items-center">
+          <div className="grow w-0">
+            <input
+              className={`w-full font-semibold text-2xl mr-4 outline-none border border-slate-300 px-1 py-1 rounded-md ${
+                errors.title ? "border-red-500" : ""
+              }`}
+              type="text"
+              placeholder="Table Name ..."
+              value={title}
+              onChange={(evt) => setTitle(evt.target.value)}
+            />
+
+            {errors.title ? (
+              <span className="text-sm ">{errors.title}</span>
+            ) : null}
+          </div>
+
+          <button
+            className="transition-colors bg-slate-200/20 rounded-full hover:bg-slate-300 w-8 h-8"
+            type="button"
+            onClick={() => setVisible(false)}
+          >
+            X
+          </button>
         </header>
 
-        <div className="flex flex-col flex-nowrap px-4">
-          <div className="flex flex-row flex-nowrap border-b border-slate-300 mb-2">
+        <div className="flex flex-col flex-nowrap relative">
+          <div className="flex flex-row flex-nowrap border-b border-slate-300 mb-2 px-4">
             <div className="grow">Name</div>
 
             <div>Type</div>
           </div>
 
-          {columns.map((col) => (
-            <div
-              className="flex flex-row flex-nowrap py-1"
-              key={`create-colums-${col.name}`}
-            >
-              <div className="grow">{col.name}</div>
+          <div className="h-44 overflow-y-auto px-4">
+            {columns.map((col) => (
+              <div
+                className="flex flex-row flex-nowrap items-center py-1"
+                key={`create-colums-${col.id}`}
+              >
+                <button
+                  type="button"
+                  className="transition-colors shrink-0 rounded-full w-6 h-6 mr-1 text-slate-500 text-sm hover:text-red-500 hover:bg-slate-500/10"
+                  onClick={() =>
+                    setColumns((old) =>
+                      old.filter((oldCol) => oldCol.id !== col.id)
+                    )
+                  }
+                >
+                  X
+                </button>
 
-              <div className="border-slate-300 border px-2 py-1 rounded-md">
-                {col.type}
+                <input
+                  type="text"
+                  className="grow px-1 mr-2 w-0"
+                  value={col.name}
+                  onChange={(evt) =>
+                    setColumns((old) =>
+                      old.map((oldCol) =>
+                        oldCol.id !== col.id
+                          ? oldCol
+                          : { ...oldCol, name: evt.target.value }
+                      )
+                    )
+                  }
+                />
+
+                <DropDownSelector
+                  onSelect={(option) =>
+                    setColumns((old) =>
+                      old.map((oldCol) =>
+                        oldCol.id !== col.id
+                          ? oldCol
+                          : { ...oldCol, type: option }
+                      )
+                    )
+                  }
+                  selected={col.type}
+                  options={SQL_DATA_TYPE}
+                />
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
 
           <button
-            onClick={() => {}}
+            onClick={() =>
+              setColumns((old) => [
+                ...old,
+                { id: window.crypto.randomUUID(), name: "", type: "int" },
+              ])
+            }
             type="button"
-            className="border border-slate-300 px-2 py-1 rounded-md"
+            className="border border-slate-300 mx-4 py-1 rounded-md px-4"
           >
             Add column
           </button>
@@ -58,7 +207,7 @@ const CreateTable = ({
         <button
           className="block bg-blue-300 rounded-md w-full max-w-32 py-1 mt-2 mx-auto"
           type="button"
-          onClick={() => {}}
+          onClick={() => validateInputs()}
         >
           Save
         </button>
@@ -70,9 +219,11 @@ const CreateTable = ({
 const BlockTable = ({
   name,
   fields,
+  onDelete,
 }: {
   name: string;
-  fields: { title: string; type: string };
+  fields: SQL_COL[];
+  onDelete: (name: string) => void;
 }) => {
   const [expanded, setExpanded] = useState(false);
 
@@ -109,18 +260,24 @@ const BlockTable = ({
       </button>
 
       <div className={`${expanded ? "block" : "hidden"}`}>
-        <div className="flex flex-row flex-nowrap px-4 py-2">
-          <div className="grow">{fields.title}</div>
-          <div className="px-2 py-1 border border-slate-300 rounded">
-            {fields.type}
+        {fields.map((field) => (
+          <div
+            key={`table-${name}-${field.name}`}
+            className="flex flex-row flex-nowrap px-4 py-2"
+          >
+            <div className="grow">{field.name}</div>
+            <div className="px-2 py-1 border border-slate-300 rounded">
+              {field.type}
+            </div>
+            <div className=""></div>
           </div>
-          <div className=""></div>
-        </div>
+        ))}
 
         <div className="flex flex-row flex-nowrap border-t border-slate-300 py-2 justify-between ">
           <button
             type="button"
             className="border border-slate-300 rounded-md p-1"
+            onClick={() => onDelete(name)}
           >
             <svg
               viewBox="0 0 24 24"
@@ -176,9 +333,22 @@ const BlockTable = ({
   );
 };
 
-const BlockBuilder = () => {
+const BlockBuilder = ({
+  data,
+  setData,
+}: {
+  data: Data;
+  setData: Dispatch<SetStateAction<Data>>;
+}) => {
   const [search, setSearch] = useState("");
   const [createTable, setCreateTable] = useState(false);
+
+  const onDelete = useCallback(
+    (name: string) => {
+      setData((old) => old.filter((table) => table.name !== name));
+    },
+    [setData]
+  );
 
   return (
     <div className="flex flex-col flex-nowrap grow">
@@ -194,24 +364,21 @@ const BlockBuilder = () => {
         <CreateTable
           visible={createTable}
           setVisible={setCreateTable}
-          onCreate={() => {}}
+          onCreate={({ name, fields }: SQL_TABLE) => {
+            setData((old) => [...old, { name, fields }]);
+          }}
         />
       </div>
 
       <div className="grow h-0 overflow-y-auto px-2">
-        <BlockTable name={"users"} fields={{ title: "id", type: "int" }} />
-        <BlockTable name={"users"} fields={{ title: "id", type: "int" }} />
-        <BlockTable name={"users"} fields={{ title: "id", type: "int" }} />
-        <BlockTable name={"users"} fields={{ title: "id", type: "int" }} />
-        <BlockTable name={"users"} fields={{ title: "id", type: "int" }} />
-        <BlockTable name={"users"} fields={{ title: "id", type: "int" }} />
-        <BlockTable name={"users"} fields={{ title: "id", type: "int" }} />
-        <BlockTable name={"users"} fields={{ title: "id", type: "int" }} />
-
-        <BlockTable name={"users"} fields={{ title: "id", type: "int" }} />
-        <BlockTable name={"users"} fields={{ title: "id", type: "int" }} />
-        <BlockTable name={"users"} fields={{ title: "id", type: "int" }} />
-        <BlockTable name={"users"} fields={{ title: "id", type: "int" }} />
+        {data.map((table) => (
+          <BlockTable
+            key={table.name}
+            name={table.name}
+            fields={table.fields}
+            onDelete={onDelete}
+          />
+        ))}
       </div>
 
       <div className="shrink-0 w-full h-12">
@@ -362,7 +529,13 @@ const CodeEditor = ({
   );
 };
 
-const Aside = () => {
+const Aside = ({
+  data,
+  setData,
+}: {
+  data: Data;
+  setData: Dispatch<SetStateAction<Data>>;
+}) => {
   const [menu, setMenu] = useState("block");
   const [code, setCode] = useState("");
 
@@ -388,7 +561,7 @@ const Aside = () => {
         </button>
       </div>
 
-      {menu === "block" ? <BlockBuilder /> : null}
+      {menu === "block" ? <BlockBuilder data={data} setData={setData} /> : null}
 
       {menu === "code" ? (
         <CodeEditor code={code} onCodeChange={setCode} />
@@ -427,10 +600,16 @@ const Diagram = ({ items }: { items: any[] }) => {
 
 export default function Home() {
   const [zoom, setZoom] = useState(100);
+  const [data, setData] = useState<Data>([
+    {
+      name: "users",
+      fields: [{ name: "id", type: "int" }],
+    },
+  ]);
 
   return (
     <section className="flex flex-row flex-nowrap h-full">
-      <Aside />
+      <Aside data={data} setData={setData} />
 
       <div className="grow relative bg-[#f9f9f9]">
         <Diagram
@@ -438,6 +617,7 @@ export default function Home() {
             { title: "Table Title", fields: [{ name: "id", type: "int" }] },
           ]}
         />
+
         <div className="absolute bottom-2 w-full h-8">
           <div className="flex flex-row flex-nowrap items-center">
             <div className="w-12 h-8 rounded-md bg-white text-slate-600 text-center border border-slate-200 pt-1">
