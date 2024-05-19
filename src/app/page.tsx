@@ -1,24 +1,25 @@
 "use client";
 
-import Modal from "@/components/Modal";
-import useOutsideClick from "@/hooks/useOutsideClick";
 import {
   Dispatch,
   ReactNode,
   SetStateAction,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
+import Modal from "@/components/Modal";
+import useOutsideClick from "@/hooks/useOutsideClick";
 
 type SQL_COL = {
+  id: string;
   name: string;
   type: string;
 };
 
 type SQL_TABLE = {
+  id: string;
   name: string;
   fields: SQL_COL[];
 };
@@ -26,6 +27,26 @@ type SQL_TABLE = {
 type Data = SQL_TABLE[];
 
 const SQL_DATA_TYPE = ["int", "varchar", "float", "double", "bool", "char"];
+
+function dataToCode(data: Data) {
+  let code = "";
+
+  data.forEach((table, tableIdx) => {
+    code += `CREATE TABLE ${table.name} (\n`;
+
+    table.fields.forEach((col, index) => {
+      code += `\t${col.name} ${col.type.toUpperCase()}${
+        index !== table.fields.length - 1 ? "," : ""
+      }\n`;
+    });
+
+    code += ");";
+
+    if (tableIdx !== data.length - 1) code += "\n\n";
+  });
+
+  return code;
+}
 
 const ConfirmModal = ({
   visible,
@@ -138,22 +159,28 @@ const DropDownSelector = ({
 };
 
 const CreateTable = ({
-  visible,
-  setVisible,
   onCreate,
+  onClose,
+  initId,
+  initName,
+  initFields,
 }: {
-  visible: boolean;
-  setVisible: (val: boolean) => void;
+  initId?: string;
+  initName?: string;
+  initFields?: SQL_COL[];
   onCreate: ({ name, fields }: SQL_TABLE) => void;
+  onClose: () => void;
 }) => {
   const [errors, setErrors] = useState<{ title?: string }>({});
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(initName || "");
   const [columns, setColumns] = useState<
     { id: string; name: string; type: string }[]
-  >([
-    { id: "2", name: "tesst", type: "int" },
-    { id: "1", name: "test 2", type: "varchar" },
-  ]);
+  >(
+    initFields || [
+      { id: "2", name: "tesst", type: "int" },
+      { id: "1", name: "test 2", type: "varchar" },
+    ]
+  );
 
   const validateInputs = useCallback(() => {
     const errors: { title?: string } = {};
@@ -161,14 +188,17 @@ const CreateTable = ({
     if (title.trim() === "") errors.title = "Invalid Title";
     if (Object.keys(errors).length) return setErrors(errors);
 
-    onCreate({ name: title, fields: columns });
-    setVisible(false);
-  }, [title, columns, onCreate, setVisible]);
-
-  if (!visible) return null;
+    onCreate({
+      id: initId || window.crypto.randomUUID(),
+      name: title,
+      fields: columns,
+    });
+    setTitle(initName || "");
+    setColumns(initFields || []);
+  }, [title, columns, onCreate, initId, initName, initFields]);
 
   return (
-    <Modal onClose={() => setVisible(false)}>
+    <Modal onClose={onClose}>
       <div className="py-2 rounded-md bg-white">
         <header className="flex flex-row flex-nowrap pt-2 pb-8 px-2 relative items-center">
           <div className="grow w-0">
@@ -190,7 +220,7 @@ const CreateTable = ({
           <button
             className="transition-colors bg-slate-200/20 rounded-full hover:bg-slate-300 w-8 h-8"
             type="button"
-            onClick={() => setVisible(false)}
+            onClick={onClose}
           >
             X
           </button>
@@ -280,18 +310,38 @@ const CreateTable = ({
 };
 
 const BlockTable = ({
+  id,
   name,
   fields,
+  onUpdate,
   onDelete,
 }: {
+  id: string;
   name: string;
   fields: SQL_COL[];
+  onUpdate: (id: string, name: string, fields: SQL_COL[]) => void;
   onDelete: (name: string) => void;
 }) => {
   const [expanded, setExpanded] = useState(false);
+  const [editting, setEditting] = useState(false);
 
   return (
     <div className="py-1">
+      {editting ? (
+        <CreateTable
+          initId={id}
+          initName={name}
+          initFields={fields}
+          onCreate={({ name: newName, fields: newFields }) => {
+            setEditting(false);
+            onUpdate(id, newName, newFields);
+          }}
+          onClose={() => {
+            setEditting(false);
+          }}
+        />
+      ) : null}
+
       <button
         className="flex flex-row flex-nowrap bg-slate-100 w-full text-left border border-slate-300 items-center px-2 py-1.5 rounded-md"
         type="button"
@@ -385,9 +435,9 @@ const BlockTable = ({
           <button
             className="border border-slate-300 rounded-md p-1"
             type="button"
-            onClick={() => {}}
+            onClick={() => setEditting((old) => !old)}
           >
-            New Column
+            Edit
           </button>
         </div>
       </div>
@@ -423,50 +473,53 @@ const BlockBuilder = ({
           New Table
         </button>
 
-        <CreateTable
-          visible={createTable}
-          setVisible={setCreateTable}
-          onCreate={({ name, fields }: SQL_TABLE) => {
-            setData((old) => [...old, { name, fields }]);
-          }}
-        />
+        {createTable ? (
+          <CreateTable
+            onClose={() => setCreateTable(false)}
+            onCreate={({ id, name, fields }) => {
+              setCreateTable(false);
+              setData((old) => [...old, { id, name, fields }]);
+            }}
+          />
+        ) : null}
       </div>
 
       <div className="grow h-0 overflow-y-auto px-2">
-        {data.map((table) => (
-          <BlockTable
-            key={table.name}
-            name={table.name}
-            fields={table.fields}
-            onDelete={onDelete}
-          />
-        ))}
+        {data
+          .filter((table) => table.name.includes(search))
+          .map((table) => (
+            <BlockTable
+              key={`block-table-${table.id}`}
+              id={table.id}
+              name={table.name}
+              fields={table.fields}
+              onUpdate={(id, name, fields) => {
+                setData((old) =>
+                  old.map((oldTable) =>
+                    oldTable.id !== id ? oldTable : { id, name, fields }
+                  )
+                );
+              }}
+              onDelete={onDelete}
+            />
+          ))}
       </div>
 
       <div className="shrink-0 w-full h-12">
         <label
-          className="flex flex-row flex-nowrap w-full h-full items-center border-t border-slate-300 bg-white p-2"
+          className="flex flex-row flex-nowrap w-full h-full items-center border-t border-slate-300 bg-white p-2 group focus-within:border-black"
           htmlFor="search"
         >
           <div className="w-6 h-6 mr-2">
             <svg
               viewBox="0 0 24 24"
-              fill="none"
+              className="fill-white stroke-slate-500 group-focus-within:stroke-black"
               xmlns="http://www.w3.org/2000/svg"
             >
               <g>
                 <g>
-                  <circle
-                    cx="10.5"
-                    cy="10.5"
-                    r="6.5"
-                    stroke="#000000"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M19.6464 20.3536C19.8417 20.5488 20.1583 20.5488 20.3536 20.3536C20.5488 20.1583 20.5488 19.8417 20.3536 19.6464L19.6464 20.3536ZM20.3536 19.6464L15.3536 14.6464L14.6464 15.3536L19.6464 20.3536L20.3536 19.6464Z"
-                    fill="#000000"
-                  />
+                  <circle cx="10.5" cy="10.5" r="6.5" strokeLinejoin="round" />
+                  <path d="M19.6464 20.3536C19.8417 20.5488 20.1583 20.5488 20.3536 20.3536C20.5488 20.1583 20.5488 19.8417 20.3536 19.6464L19.6464 20.3536ZM20.3536 19.6464L15.3536 14.6464L14.6464 15.3536L19.6464 20.3536L20.3536 19.6464Z" />
                 </g>
               </g>
             </svg>
@@ -475,24 +528,27 @@ const BlockBuilder = ({
           <input
             id="search"
             name="search"
-            className="grow"
+            className="grow outline-none"
             placeholder="Search for a table name ..."
             value={search}
             onChange={(evt) => setSearch(evt.target.value)}
           />
+
+          <button
+            className="ml-2 rounded-full w-6 h-6 text-slate-500 group-focus-within:text-black"
+            type="button"
+            onClick={() => setSearch("")}
+          >
+            X
+          </button>
         </label>
       </div>
     </div>
   );
 };
 
-const CodeEditor = ({
-  code,
-  onCodeChange,
-}: {
-  code: string;
-  onCodeChange: (val: string) => void;
-}) => {
+const CodeEditor = ({ data }: { data: Data }) => {
+  const [code, setCode] = useState(dataToCode(data));
   const lineRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
 
@@ -576,7 +632,7 @@ const CodeEditor = ({
           className="w-full pl-6 h-full resize-none outline-none"
           value={code}
           placeholder="SQL for your diagram"
-          onChange={(evt) => onCodeChange(evt.target.value)}
+          onChange={(evt) => setCode(evt.target.value)}
           onScroll={(evt) => {
             if (lineRef.current && textRef.current)
               lineRef.current.scrollTop = textRef.current.scrollTop;
@@ -599,7 +655,6 @@ const Aside = ({
   setData: Dispatch<SetStateAction<Data>>;
 }) => {
   const [menu, setMenu] = useState("block");
-  const [code, setCode] = useState("");
 
   return (
     <aside className="flex flex-col flex-nowrap w-80 shrink-0 border-r border-slate-200">
@@ -625,9 +680,7 @@ const Aside = ({
 
       {menu === "block" ? <BlockBuilder data={data} setData={setData} /> : null}
 
-      {menu === "code" ? (
-        <CodeEditor code={code} onCodeChange={setCode} />
-      ) : null}
+      {menu === "code" ? <CodeEditor data={data} /> : null}
     </aside>
   );
 };
@@ -664,8 +717,9 @@ export default function Home() {
   const [zoom, setZoom] = useState(100);
   const [data, setData] = useState<Data>([
     {
+      id: "fnjkdsanfjd",
       name: "users",
-      fields: [{ name: "id", type: "int" }],
+      fields: [{ id: "fnuasdnhfiuadsuhofi", name: "id", type: "int" }],
     },
   ]);
 
