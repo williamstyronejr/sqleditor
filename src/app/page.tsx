@@ -4,6 +4,7 @@ import Modal from "@/components/Modal";
 import useOutsideClick from "@/hooks/useOutsideClick";
 import {
   Dispatch,
+  ReactNode,
   SetStateAction,
   useCallback,
   useEffect,
@@ -25,6 +26,68 @@ type SQL_TABLE = {
 type Data = SQL_TABLE[];
 
 const SQL_DATA_TYPE = ["int", "varchar", "float", "double", "bool", "char"];
+
+const ConfirmModal = ({
+  visible,
+  onClose,
+  children,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  children: ReactNode;
+}) => {
+  if (!visible) return null;
+
+  return <Modal onClose={onClose}>{children}</Modal>;
+};
+
+const ConfirmButton = ({
+  message,
+  onConfirm,
+  children,
+}: {
+  message: string;
+  children: ReactNode;
+  onConfirm: () => void;
+}) => {
+  const [active, setActive] = useState(false);
+
+  return (
+    <div className="">
+      <button
+        type="button"
+        className="border border-slate-300 rounded-md p-1"
+        onClick={() => setActive((old) => !old)}
+      >
+        {children}
+      </button>
+
+      <ConfirmModal visible={active} onClose={() => setActive(false)}>
+        <div className="px-2 py-4 rounded-md bg-white">
+          <div className="pt-4 pb-6">{message}</div>
+
+          <div className="flex flex-row flex-nowrap w-full justify-center">
+            <button
+              type="button"
+              className="px-4 py-1 mr-2 bg-red-500 text-white rounded-md"
+              onClick={onConfirm}
+            >
+              Confirm
+            </button>
+
+            <button
+              type="button"
+              className="px-4 py-1 bg-slate-300 rounded-md"
+              onClick={() => setActive(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </ConfirmModal>
+    </div>
+  );
+};
 
 const DropDownSelector = ({
   selected,
@@ -274,10 +337,9 @@ const BlockTable = ({
         ))}
 
         <div className="flex flex-row flex-nowrap border-t border-slate-300 py-2 justify-between ">
-          <button
-            type="button"
-            className="border border-slate-300 rounded-md p-1"
-            onClick={() => onDelete(name)}
+          <ConfirmButton
+            message={`Are you sure you want to delete  table: ${name}?`}
+            onConfirm={() => onDelete(name)}
           >
             <svg
               viewBox="0 0 24 24"
@@ -318,7 +380,7 @@ const BlockTable = ({
                 />
               </g>
             </svg>
-          </button>
+          </ConfirmButton>
 
           <button
             className="border border-slate-300 rounded-md p-1"
@@ -608,7 +670,7 @@ export default function Home() {
   ]);
 
   return (
-    <section className="flex flex-row flex-nowrap h-full">
+    <section className="flex flex-row flex-nowrap h-full relative">
       <Aside data={data} setData={setData} />
 
       <div className="grow relative bg-[#f9f9f9]">
