@@ -1,16 +1,9 @@
 "use client";
 
-import {
-  Dispatch,
-  ReactNode,
-  SetStateAction,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { Dispatch, SetStateAction, useState } from "react";
 import CodeEditor from "@/components/CodeEditor";
 import BlockBuilder from "@/components/BlockBuilder";
+import Diagram from "@/components/Diagram";
 
 const Aside = ({
   data,
@@ -47,34 +40,6 @@ const Aside = ({
 
       {menu === "code" ? <CodeEditor data={data} /> : null}
     </aside>
-  );
-};
-
-const Diagram = ({ items }: { items: any[] }) => {
-  const ref = useRef<HTMLCanvasElement>(null);
-
-  const drawTable = (ctx: CanvasRenderingContext2D) => {
-    ctx.fillStyle = "#000000";
-    ctx.roundRect(20, 20, 100, 100, 4);
-    ctx.fill();
-  };
-
-  useEffect(() => {
-    const ctx = ref.current?.getContext("2d");
-
-    if (ctx) {
-      drawTable(ctx);
-    }
-  }, [items]);
-
-  return (
-    <div className="flex flex-col flex-nowrap h-full w-full">
-      <div className="h-12 bg-white shrink-0"> </div>
-
-      <div className="grow">
-        <canvas className="w-full h-full" ref={ref} />
-      </div>
-    </div>
   );
 };
 
