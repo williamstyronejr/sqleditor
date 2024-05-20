@@ -8,6 +8,10 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      boxShadow: {
+        popup:
+          "0 0 15px rgba(101,119,134,0.2), 0 0 3px 1px rgba(101,119,134,0.15);",
+      },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
         "gradient-conic":
